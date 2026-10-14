@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ปฏิทินลงชื่อเข้าใช้</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2f6fed">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ลงชื่อ">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f6f7f9;--card:#fff;--text:#1d2330;--mute:#6b7385;--line:#e3e6ec;--accent:#2f6fed;
+--work:#d9f2e0;--workt:#1c6b36;--off:#ffe0e0;--offt:#a12a2a;--leave:#fff1cc;--leavet:#8a6100;--ot:#e3dcff;--ott:#51349f}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171e;--card:#1c212b;--text:#e8ebf2;--mute:#9099ad;--line:#2d3442;--accent:#6b9bff;
+--work:#1d4a2d;--workt:#9be3b3;--off:#5a2323;--offt:#ffb3b3;--leave:#5a4510;--leavet:#ffd978;--ot:#3b2f6b;--ott:#cbbfff}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Sarabun","Noto Sans Thai",sans-serif}
+.wrap{max-width:560px;margin:0 auto;padding:16px}
+.head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.head h1{font-size:20px;margin:0}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:8px 14px}
+button:hover{border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.dow{text-align:center;font-size:12px;color:var(--mute);padding:4px 0}
+.day{aspect-ratio:1/1.05;border-radius:10px;background:var(--card);border:1px solid var(--line);padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;font-size:14px;cursor:pointer;min-height:48px}
+.day.empty{background:transparent;border:none;cursor:default}
+.day .tag{font-size:10px;margin-top:auto;line-height:1.1;text-align:center;overflow:hidden;max-width:100%}
+.day.today{outline:2px solid var(--accent)}
+.s-work{background:var(--work);color:var(--workt)}.s-off{background:var(--off);color:var(--offt)}
+.s-leave{background:var(--leave);color:var(--leavet)}.s-ot{background:var(--ot);color:var(--ott)}
+.s-split{background:linear-gradient(135deg,var(--work) 50%,var(--ot) 50%);color:var(--text)}
+.sum{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.chip{padding:6px 12px;border-radius:999px;font-size:13px}
+.panel{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:5}
+.panel.open{display:flex}
+.sheet{background:var(--card);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px))}
+.sheet h2{margin:0 0 12px;font-size:17px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.opts button{padding:12px;font-weight:600;opacity:.6}.opts button.sel{opacity:1;outline:2px solid var(--accent)}
+input[type=text]{width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit;margin-bottom:12px}
+.row{display:flex;gap:8px}.row button{flex:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <button id="prev">‹</button>
+    <h1 id="title"></h1>
+    <button id="next">›</button>
+  </div>
+  <div class="grid" id="dow"></div>
+  <div class="grid" id="grid" style="margin-top:6px"></div>
+  <div class="sum" id="sum"></div>
+  <button id="todayBtn">ไปวันนี้</button>
+</div>
+
+<div class="panel" id="panel">
+  <div class="sheet">
+    <h2 id="pdate"></h2>
+    <div class="opts" id="opts"></div>
+    <div id="shiftBox" style="display:none"><div style="font-size:13px;color:var(--mute);margin-bottom:6px">กะที่ทำงาน</div><div class="opts" id="shifts" style="grid-template-columns:repeat(3,1fr)"></div></div>
+    <div id="otBox" style="display:none"><div style="font-size:13px;color:var(--mute);margin-bottom:6px">กะที่ทำ OT</div><div class="opts" id="oshifts" style="grid-template-columns:repeat(3,1fr)"></div></div>
+    <input type="text" id="note" placeholder="หมายเหตุ (ไม่บังคับ)">
+    <div class="row"><button id="clear">ล้าง</button><button id="close">ปิด</button><button id="save" style="background:var(--accent);color:#fff;border-color:var(--accent)">บันทึก</button></div>
+  </div>
+</div>
+
+<script>
+const STATUS={work:{t:"ทำงาน",c:"s-work"},off:{t:"หยุด",c:"s-off"},leave:{t:"ลา",c:"s-leave"},ot:{t:"OT",c:"s-ot"}};
+const SHIFTS=["เช้า","บ่าย","ดึก"];
+const ORDER=["work","off","leave","ot"];
+const MONTHS=["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const DOW=["อา","จ","อ","พ","พฤ","ศ","ส"];
+let data={};
+try{data=JSON.parse(localStorage.getItem("cal-log")||"{}")}catch(e){data={}}
+Object.keys(data).forEach(k=>{if(!Array.isArray(data[k].s))data[k].s=[data[k].s]});
+function save(){try{localStorage.setItem("cal-log",JSON.stringify(data))}catch(e){}}
+const now=new Date();let y=now.getFullYear(),m=now.getMonth(),sel=null;
+const key=(d)=>`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+document.getElementById("dow").innerHTML=DOW.map(d=>`<div class="dow">${d}</div>`).join("");
+
+function render(){
+  document.getElementById("title").textContent=`${MONTHS[m]} ${y+543}`;
+  const first=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate();
+  let h="";for(let i=0;i<first;i++)h+='<div class="day empty"></div>';
+  const cnt={work:0,off:0,leave:0,ot:0};
+  for(let d=1;d<=days;d++){
+    const e=data[key(d)];const isToday=d===now.getDate()&&m===now.getMonth()&&y===now.getFullYear();
+    if(e){e.s.forEach(x=>cnt[x]++)}
+    const sp=e&&e.s.includes("work")&&e.s.includes("ot");
+    const cls=e?(sp?"s-split":STATUS[e.s[0]].c):"";
+    const lbl=e?e.s.map(x=>x==="work"?"ทำงาน"+(e.sh?" "+e.sh:""):x==="ot"?"OT"+(e.oh?" "+e.oh:""):STATUS[x].t).join("<br>")+(e.n?" •":""):"";
+    h+=`<div class="day ${cls} ${isToday?"today":""}" data-d="${d}"><span>${d}</span>${e?`<span class="tag">${lbl}</span>`:""}</div>`;
+  }
+  document.getElementById("grid").innerHTML=h;
+  document.getElementById("sum").innerHTML=Object.keys(STATUS).map(k=>`<span class="chip ${STATUS[k].c}">${STATUS[k].t} ${cnt[k]} วัน</span>`).join("");
+}
+document.getElementById("grid").onclick=ev=>{
+  const c=ev.target.closest(".day");if(!c||c.classList.contains("empty"))return;
+  sel=+c.dataset.d;openPanel();
+};
+let cs=[],csh="",coh="";
+function drawPanel(){
+  document.getElementById("otBox").style.display=cs.includes("ot")?"block":"none";
+  document.getElementById("oshifts").innerHTML=SHIFTS.map(s=>`<button class="${coh===s?"sel":""}" data-h="${s}">${s}${coh===s?" ✓":""}</button>`).join("");
+  document.getElementById("opts").innerHTML=ORDER.map(s=>`<button class="${STATUS[s].c} ${cs.includes(s)?"sel":""}" data-s="${s}">${STATUS[s].t}${cs.includes(s)?" ✓":""}</button>`).join("");
+  document.getElementById("shiftBox").style.display=cs.includes("work")?"block":"none";
+  document.getElementById("shifts").innerHTML=SHIFTS.map(s=>`<button class="${csh===s?"sel":""}" data-h="${s}">${s}${csh===s?" ✓":""}</button>`).join("");
+}
+function openPanel(){
+  const e=data[key(sel)]||{s:[]};
+  cs=e.s.slice();csh=e.sh||"";coh=e.oh||"";
+  document.getElementById("pdate").textContent=`${sel} ${MONTHS[m]} ${y+543}`;
+  document.getElementById("note").value=e.n||"";
+  drawPanel();
+  document.getElementById("panel").classList.add("open");
+}
+function closeP(){document.getElementById("panel").classList.remove("open")}
+document.getElementById("opts").onclick=ev=>{
+  const b=ev.target.closest("button");if(!b)return;
+  const s=b.dataset.s;
+  if(cs.includes(s))cs=cs.filter(x=>x!==s);
+  else if(s==="off"||s==="leave")cs=[s];
+  else cs=cs.filter(x=>x==="work"||x==="ot").concat(s);
+  if(!cs.includes("work"))csh="";
+  if(!cs.includes("ot"))coh="";
+  drawPanel();
+};
+document.getElementById("shifts").onclick=ev=>{
+  const b=ev.target.closest("button");if(!b)return;
+  csh=csh===b.dataset.h?"":b.dataset.h;drawPanel();
+};
+document.getElementById("oshifts").onclick=ev=>{
+  const b=ev.target.closest("button");if(!b)return;
+  coh=coh===b.dataset.h?"":b.dataset.h;drawPanel();
+};
+document.getElementById("save").onclick=()=>{
+  const k=key(sel);
+  if(!cs.length){delete data[k]}
+  else data[k]={s:ORDER.filter(x=>cs.includes(x)),sh:cs.includes("work")?csh:"",oh:cs.includes("ot")?coh:"",n:document.getElementById("note").value.trim()};
+  save();closeP();render();
+};
+document.getElementById("clear").onclick=()=>{delete data[key(sel)];save();closeP();render()};
+document.getElementById("close").onclick=closeP;
+document.getElementById("panel").onclick=ev=>{if(ev.target.id==="panel")closeP()};
+document.getElementById("prev").onclick=()=>{m--;if(m<0){m=11;y--}render()};
+document.getElementById("next").onclick=()=>{m++;if(m>11){m=0;y++}render()};
+document.getElementById("todayBtn").onclick=()=>{y=now.getFullYear();m=now.getMonth();render()};
+render();
+</script>
+<script>
+if("serviceWorker" in navigator&&location.protocol.startsWith("http")){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>
